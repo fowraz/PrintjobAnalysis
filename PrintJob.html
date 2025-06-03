@@ -1,0 +1,2087 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Supercharged Print Job Report Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+        body.dark {
+            background-color: #1a202c; /* bg-gray-900 */
+            color: #e2e8f0; /* text-gray-200 */
+        }
+        body.dark .bg-white {
+            background-color: #2d3748; /* bg-gray-800 */
+            color: #e2e8f0;
+        }
+        body.dark .bg-gray-100 {
+            background-color: #1a202c; /* bg-gray-900 */
+        }
+        body.dark .bg-gray-50 {
+            background-color: #2d3748; /* bg-gray-800 */
+        }
+        body.dark .bg-indigo-50 {
+            background-color: #4338CA; /* indigo-700 */
+            color: #e0e7ff; /* indigo-100 */
+        }
+        body.dark .bg-indigo-50 input, body.dark .bg-indigo-50 select {
+            background-color: #4f46e5; /* indigo-600 */
+            color: #e0e7ff;
+            border-color: #6366f1; /* indigo-500 */
+        }
+        body.dark .bg-purple-50, body.dark .bg-blue-50, body.dark .bg-yellow-50 {
+            background-color: #4a5568; /* gray-700 */
+            color: #e2e8f0;
+            border-color: #718096; /* gray-600 */
+        }
+        body.dark input, body.dark select, body.dark button:not(.bg-white, .bg-indigo-500, .bg-green-500, .bg-blue-500) {
+            background-color: #4a5568; /* gray-700 */
+            color: #e2e8f0;
+            border-color: #718096; /* gray-600 */
+        }
+        body.dark .report-table th {
+            background-color: #4a5568;
+            color: #e2e8f0;
+        }
+        body.dark .report-table td {
+            border-color: #4a5568;
+        }
+        body.dark .report-table tr:nth-child(even) {
+            background-color: #2d3748;
+        }
+        body.dark .report-table tr:hover {
+            background-color: #4a5568;
+        }
+        body.dark .raw-data-table thead th {
+            background-color: #4a5568;
+        }
+        body.dark .loader {
+            border-top-color: #a78bfa; /* purple-400 */
+        }
+        body.dark .text-indigo-600 { color: #a78bfa; }
+        body.dark .text-indigo-700 { color: #c7d2fe; }
+        body.dark .text-gray-500 { color: #a0aec0; }
+        body.dark .text-gray-700 { color: #e2e8f0; }
+        body.dark .text-purple-700 { color: #d8b4fe; }
+        body.dark .text-blue-700 { color: #93c5fd; }
+        body.dark .text-yellow-700 { color: #fcd34d; }
+
+        /* Custom styling for file input */
+        .file-input-wrapper {
+            @apply flex items-center justify-center w-full px-6 py-8 border-2 border-dashed rounded-lg cursor-pointer bg-gray-50 text-gray-500 transition-all duration-300 ease-in-out;
+            @apply hover:bg-gray-100 hover:border-gray-400;
+        }
+        .file-input-wrapper.dark {
+            @apply bg-gray-700 text-gray-300 border-gray-600;
+            @apply hover:bg-gray-600 hover:border-gray-500;
+        }
+        .file-input-wrapper input[type="file"] {
+            @apply absolute opacity-0 w-full h-full cursor-pointer;
+        }
+        /* Loading spinner */
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            vertical-align: middle;
+            margin-left: 10px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        /* Report View specific styling */
+        .report-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+        }
+        .report-table th, .report-table td {
+            border: 1px solid #e2e8f0;
+            padding: 0.75rem;
+            text-align: left;
+        }
+        .report-table th {
+            background-color: #f8fafc;
+            font-weight: 600;
+            color: #475569;
+            cursor: pointer; /* Make headers clickable for sorting */
+            user-select: none;
+        }
+        .report-table th.sort-asc::after { content: " ▲"; }
+        .report-table th.sort-desc::after { content: " ▼"; }
+        .report-table tr:nth-child(even) {
+            background-color: #f0f4f8;
+        }
+        .report-table tr:hover {
+            background-color: #e2e8f0;
+        }
+        /* For raw data table */
+        .raw-data-table-container {
+            max-height: 500px;
+            overflow-y: auto;
+            border: 1px solid #e2e8f0;
+            border-radius: 0.5rem;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.06);
+        }
+        .raw-data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.875rem;
+        }
+        .raw-data-table th, .raw-data-table td {
+            padding: 0.5rem 0.75rem;
+            border: 1px solid #e2e8f0;
+            white-space: nowrap;
+        }
+        .raw-data-table thead th {
+            position: sticky;
+            top: 0;
+            background-color: #f8fafc;
+            z-index: 10;
+        }
+
+        /* Modal Styles */
+        .modal {
+            @apply fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-50 transition-opacity duration-300 ease-in-out;
+        }
+        .modal-content {
+            @apply bg-white dark:bg-gray-800 p-8 rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] overflow-y-auto transform scale-95 opacity-0 transition-transform duration-300 ease-in-out;
+        }
+        .modal.show .modal-content {
+            @apply scale-100 opacity-100;
+        }
+        .modal.hidden {
+            @apply opacity-0 pointer-events-none;
+        }
+        .modal.hidden .modal-content {
+            @apply scale-95 opacity-0;
+        }
+
+        /* Toggle switch for dark/light mode */
+        .toggle-switch {
+            @apply relative inline-block w-10 h-6 rounded-full cursor-pointer transition-colors duration-300;
+            background-color: #ccc; /* light mode off */
+        }
+        .toggle-switch.checked {
+            background-color: #4F46E5; /* indigo-600 */
+        }
+        .toggle-switch input {
+            @apply opacity-0 w-0 h-0;
+        }
+        .toggle-switch .slider {
+            @apply absolute top-0 left-0 right-0 bottom-0 bg-gray-300 rounded-full transition-transform duration-300;
+        }
+        .toggle-switch .slider:before {
+            @apply absolute content-[''] h-4 w-4 left-1 bottom-1 bg-white rounded-full transition-transform duration-300;
+        }
+        .toggle-switch.checked .slider:before {
+            transform: translateX(16px);
+        }
+        body.dark .toggle-switch {
+            background-color: #4a5568; /* gray-700 */
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800 min-h-screen flex flex-col items-center py-10 px-4">
+    <div class="absolute top-4 right-4 flex items-center space-x-2">
+        <span class="text-sm text-gray-600 dark:text-gray-400">Light</span>
+        <label id="themeToggle" class="toggle-switch">
+            <input type="checkbox" id="darkModeToggle">
+            <span class="slider"></span>
+        </label>
+        <span class="text-sm text-gray-600 dark:text-gray-400">Dark</span>
+        <button id="helpBtn" class="p-2 rounded-full text-gray-600 hover:bg-gray-200 dark:text-gray-400 dark:hover:bg-gray-700 transition">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9.247a8 8 0 0111.472 0l-3.839 3.84a1 1 0 00-.077 1.258l2.923 2.923c1.722 1.722 1.722 4.515 0 6.237a4.342 4.342 0 01-6.237 0l-2.923-2.923a1 1 0 00-1.258-.077l-3.84 3.839a8 8 0 010-11.472z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.5a1 1 0 100-2 1 1 0 000 2z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18.5a1 1 0 100-2 1 1 0 000 2z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 12a1 1 0 100-2 1 1 0 000 2z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15a1 1 0 100-2 1 1 0 000 2z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9a1 1 0 100-2 1 1 0 000 2z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3a1 1 0 100-2 1 1 0 000 2z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 21a1 1 0 100-2 1 1 0 000 2z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6.5 12a1 1 0 100-2 1 1 0 000 2z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.5 12a1 1 0 100-2 1 1 0 000 2z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12a1 1 0 100-2 1 1 0 000 2z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a1 1 0 100-2 1 1 0 000 2z"></path></svg>
+        </button>
+    </div>
+
+    <div class="container mx-auto w-full max-w-7xl bg-white p-8 rounded-xl shadow-2xl animate-fade-in transition-colors duration-300">
+        <header class="text-center mb-10">
+            <h1 class="text-4xl font-bold text-indigo-600 dark:text-indigo-400">Supercharged Print Job Analysis Dashboard</h1>
+            <p class="text-gray-500 dark:text-gray-400 mt-2">Upload your print data to analyze usage, costs, and trends with advanced reporting.</p>
+        </header>
+
+        <div class="mb-8 p-6 bg-indigo-50 dark:bg-indigo-700 rounded-lg border border-indigo-200 dark:border-indigo-600 shadow-md">
+            <label for="fileInput" class="block mb-4 text-lg font-semibold text-indigo-700 dark:text-indigo-100">Upload PrintJobs File (CSV or XLSX):</label>
+            <div class="relative file-input-wrapper" id="dropArea">
+                <input type="file" id="fileInput" accept=".csv, .xlsx, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel">
+                <div class="flex flex-col items-center text-center">
+                    <svg class="w-12 h-12 mb-2 text-indigo-500 dark:text-indigo-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 0115.928 10l.338.01A6 6 0 0117 20H7a6 6 0 010-12zm.293 8.707a1 1 0 001.414-1.414L10 18.586V10a1 1 0 10-2 0v8.586l-1.293-1.293a1 1 0 00-1.414 1.414l3 3a1 1 0 001.414 0l3-3z"></path></svg>
+                    <p class="font-medium text-gray-700 dark:text-gray-300">Drag & Drop your file here, or <span class="text-indigo-600 dark:text-indigo-400 font-bold">Browse</span></p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Supported formats: .csv, .xlsx</p>
+                    <p id="fileNameDisplay" class="text-sm font-semibold mt-2 text-gray-800 dark:text-gray-200"></p>
+                </div>
+            </div>
+            <div id="messageArea" class="mt-4 text-sm transition-all duration-300 ease-in-out flex items-center"></div>
+        </div>
+
+        <div id="settingsAndFilters" class="mb-8 hidden">
+            <div class="flex justify-between items-center mb-4 cursor-pointer p-4 bg-gray-100 dark:bg-gray-700 rounded-lg shadow-sm hover:bg-gray-200 dark:hover:bg-gray-600 transition" id="filtersToggleBtn">
+                <h2 class="text-2xl font-semibold text-gray-700 dark:text-gray-200">Filter & View Options</h2>
+                <svg id="filtersToggleIcon" class="w-6 h-6 text-gray-600 dark:text-gray-300 transform transition-transform duration-300 rotate-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+            </div>
+
+            <div id="filterOptions" class="p-6 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 transition-all duration-300 ease-in-out">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                    <div>
+                        <label for="pageCostInput" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Cost Per Page (e.g., 0.05):</label>
+                        <input type="number" id="pageCostInput" value="0.00" min="0" step="0.001"
+                               class="mt-1 block w-full pl-3 pr-3 py-2 text-base border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md transition-colors duration-300">
+                    </div>
+                    <div class="relative">
+                        <label for="ownerSearchInput" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Search Owner:</label>
+                        <input type="text" id="ownerSearchInput" placeholder="Type to search..."
+                               class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md transition-colors duration-300">
+                        <select id="ownerFilter" class="absolute inset-0 w-full opacity-0 cursor-pointer">
+                            <option value="">All Owners</option>
+                        </select>
+                        <div class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                            <svg class="h-5 w-5 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </div>
+                    </div>
+                    <div>
+                        <label for="yearFilter" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Year:</label>
+                        <select id="yearFilter" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md transition-colors duration-300">
+                            <option value="">All Years</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="monthFilter" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Month:</label>
+                        <select id="monthFilter" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md transition-colors duration-300">
+                            <option value="">All Months</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="startDateFilter" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Start Date:</label>
+                        <input type="date" id="startDateFilter"
+                               class="mt-1 block w-full pl-3 pr-3 py-2 text-base border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md transition-colors duration-300">
+                    </div>
+                    <div>
+                        <label for="endDateFilter" class="block text-sm font-medium text-gray-700 dark:text-gray-300">End Date:</label>
+                        <input type="date" id="endDateFilter"
+                               class="mt-1 block w-full pl-3 pr-3 py-2 text-base border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md transition-colors duration-300">
+                    </div>
+                    <div>
+                        <label for="topNFilter" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Top N Users:</label>
+                        <input type="number" id="topNFilter" value="" min="1" placeholder="All"
+                               class="mt-1 block w-full pl-3 pr-3 py-2 text-base border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md transition-colors duration-300">
+                    </div>
+                </div>
+
+                <div class="flex flex-col sm:flex-row justify-between items-center space-y-4 sm:space-y-0 sm:space-x-4 mb-6">
+                    <div class="flex space-x-3 w-full sm:w-auto">
+                        <button id="resetDateFiltersBtn" class="flex-1 px-4 py-2 bg-gray-200 text-gray-700 dark:bg-gray-600 dark:text-gray-200 rounded-md hover:bg-gray-300 dark:hover:bg-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-400 dark:focus:ring-gray-500 transition-colors duration-300">
+                            Reset Dates
+                        </button>
+                        <button id="clearFiltersBtn" class="flex-1 px-4 py-2 bg-gray-200 text-gray-700 dark:bg-gray-600 dark:text-gray-200 rounded-md hover:bg-gray-300 dark:hover:bg-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-400 dark:focus:ring-gray-500 transition-colors duration-300">
+                            Clear All Filters
+                        </button>
+                    </div>
+                    <div class="flex-1 min-w-[50%]">
+                        <label for="reportViewSelect" class="sr-only">Select Report View:</label>
+                        <select id="reportViewSelect" class="block w-full pl-3 pr-10 py-2 text-base border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md transition-colors duration-300">
+                            <option value="owner_monthly_breakdown">Owner & Monthly Breakdown (Default)</option>
+                            <option value="total_pages_by_owner">Total Pages by Owner</option>
+                            <option value="total_pages_by_month">Total Pages by Month</option>
+                            <option value="total_pages_by_year">Total Pages by Year</option>
+                            <option value="total_pages_by_week">Total Pages by Week</option>
+                            <option value="total_pages_by_day">Total Pages by Day</option>
+                            <option value="owner_comparison">Compare Owners</option>
+                            <option value="raw_data_table">Raw Data Table</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="mt-4 p-4 bg-gray-100 dark:bg-gray-700 rounded-lg" id="ownerComparisonSelects" style="display: none;">
+                    <h3 class="text-lg font-medium text-gray-700 dark:text-gray-200 mb-2">Select Owners to Compare:</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label for="compareOwner1" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Owner 1:</label>
+                            <select id="compareOwner1" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md transition-colors duration-300">
+                                <option value="">Select Owner</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="compareOwner2" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Owner 2:</label>
+                            <select id="compareOwner2" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md transition-colors duration-300">
+                                <option value="">Select Owner</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex justify-end space-x-3 mt-6">
+                    <button id="exportCsvBtn" class="px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-300 transition-colors duration-300">
+                        Export CSV
+                    </button>
+                    <button id="exportXlsxBtn" class="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-300 transition-colors duration-300">
+                        Export XLSX
+                    </button>
+                     <button id="exportPdfBtn" class="px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-300 transition-colors duration-300">
+                        Export PDF
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div id="kpiCards" class="mb-8 hidden grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="bg-purple-50 dark:bg-purple-800 p-6 rounded-lg shadow-lg border border-purple-200 dark:border-purple-700 text-center transition-all duration-300">
+                <h3 class="text-lg font-semibold text-purple-700 dark:text-purple-200 mb-2">Total Pages Printed</h3>
+                <p id="totalPagesPrinted" class="text-4xl font-bold text-purple-800 dark:text-purple-100 animate-pulse">0</p>
+            </div>
+            <div class="bg-blue-50 dark:bg-blue-800 p-6 rounded-lg shadow-lg border border-blue-200 dark:border-blue-700 text-center transition-all duration-300">
+                <h3 class="text-lg font-semibold text-blue-700 dark:text-blue-200 mb-2">Estimated Total Cost</h3>
+                <p id="estimatedTotalCost" class="text-4xl font-bold text-blue-800 dark:text-blue-100 animate-pulse">$0.00</p>
+            </div>
+            <div class="bg-yellow-50 dark:bg-yellow-800 p-6 rounded-lg shadow-lg border border-yellow-200 dark:border-yellow-700 text-center transition-all duration-300">
+                <h3 class="text-lg font-semibold text-yellow-700 dark:text-yellow-200 mb-2">Top User (Pages)</h3>
+                <p id="topUser" class="text-2xl font-bold text-yellow-800 dark:text-yellow-100 truncate">N/A</p>
+                <p id="topUserPages" class="text-xl font-medium text-yellow-700 dark:text-yellow-200 mt-1">0 pages</p>
+            </div>
+            <div class="bg-green-50 dark:bg-green-800 p-6 rounded-lg shadow-lg border border-green-200 dark:border-green-700 text-center transition-all duration-300">
+                <h3 class="text-lg font-semibold text-green-700 dark:text-green-200 mb-2">Busiest Month</h3>
+                <p id="busiestMonth" class="text-2xl font-bold text-green-800 dark:text-green-100">N/A</p>
+                <p id="busiestMonthPages" class="text-xl font-medium text-green-700 dark:text-green-200 mt-1">0 pages</p>
+            </div>
+            <div class="bg-red-50 dark:bg-red-800 p-6 rounded-lg shadow-lg border border-red-200 dark:border-red-700 text-center transition-all duration-300">
+                <h3 class="text-lg font-semibold text-red-700 dark:text-red-200 mb-2">Total Owners</h3>
+                <p id="totalOwners" class="text-4xl font-bold text-red-800 dark:text-red-100">0</p>
+            </div>
+            <div class="bg-teal-50 dark:bg-teal-800 p-6 rounded-lg shadow-lg border border-teal-200 dark:border-teal-700 text-center transition-all duration-300">
+                <h3 class="text-lg font-semibold text-teal-700 dark:text-teal-200 mb-2">Avg. Pages/Day</h3>
+                <p id="avgPagesPerDay" class="text-4xl font-bold text-teal-800 dark:text-teal-100">0</p>
+            </div>
+        </div>
+
+        <div id="visualizationSection" class="mb-8 p-6 bg-blue-50 dark:bg-blue-800 rounded-lg border border-blue-200 dark:border-blue-700 shadow-lg hidden transition-all duration-300">
+            <h2 class="text-2xl font-semibold text-blue-700 dark:text-blue-200 mb-4">Print Activity Visualization</h2>
+            <div class="chart-container" style="position: relative; height:40vh; width:100%;">
+                <canvas id="printChart"></canvas>
+            </div>
+            <div class="mt-4 flex justify-center">
+                <label for="chartType" class="mr-2 text-gray-700 dark:text-gray-300">Chart Type:</label>
+                <select id="chartType" class="border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 rounded-md p-1 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 transition-colors duration-300">
+                    <option value="bar">Bar Chart (Pages by Owner)</option>
+                    <option value="line">Line Chart (Pages by Month)</option>
+                </select>
+            </div>
+        </div>
+
+        <div id="reportOutput" class="space-y-8 min-h-[200px] transition-all duration-300">
+            <div id="initialMessage" class="text-center text-gray-500 dark:text-gray-400 py-10">
+                <svg class="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                    <path vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <h3 class="mt-2 text-lg font-medium text-gray-900 dark:text-gray-100">No report generated yet</h3>
+                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Please upload a file to see the report.</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="helpModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="flex justify-between items-center mb-4 pb-2 border-b border-gray-200 dark:border-gray-700">
+                <h2 class="text-2xl font-bold text-indigo-700 dark:text-indigo-400">How to Use This Dashboard</h2>
+                <button class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition" onclick="closeModal('helpModal')">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            <div class="text-gray-700 dark:text-gray-300 space-y-4">
+                <p>This dashboard helps you analyze print job data from CSV or XLSX files. Here's how to use it:</p>
+                <ol class="list-decimal list-inside space-y-2">
+                    <li><strong>Upload File:</strong> Click the "Browse" button or drag & drop your print job data file into the designated area. Supported columns are "SubmittedDate", "Owner", and "TotalPages" (case-insensitive).</li>
+                    <li><strong>Configuration:</strong> Enter a "Cost Per Page" to see estimated printing costs in your reports.</li>
+                    <li><strong>Filter Data:</strong> Use the "Filter & View Options" section to narrow down your data:
+                        <ul class="list-disc list-inside ml-4">
+                            <li><strong>Owner Search:</strong> Type in the input field to find specific owners.</li>
+                            <li><strong>Year/Month Filters:</strong> Select specific periods.</li>
+                            <li><strong>Date Range:</strong> Use "Start Date" and "End Date" for custom periods. Selecting a date range will clear year/month filters, and vice-versa.</li>
+                            <li><strong>Top N Users:</strong> Display only the top N users by pages printed.</li>
+                        </ul>
+                    </li>
+                    <li><strong>Select Report View:</strong> Choose how you want to see your data from the "Select Report View" dropdown. New options include daily/weekly breakdowns, raw data, and owner comparison.</li>
+                    <li><strong>View KPIs & Charts:</strong> The KPI cards will show key metrics for your filtered data, and the interactive charts (bar for owner comparison, line for monthly trends) provide visual insights.</li>
+                    <li><strong>Export Reports:</strong>
+                        <ul class="list-disc list-inside ml-4">
+                            <li><strong>CSV/XLSX:</strong> Export the currently displayed report data to a spreadsheet format.</li>
+                            <li><strong>PDF:</strong> Generate a professional PDF report including a summary, charts, and the detailed table report.</li>
+                        </ul>
+                    </li>
+                    <li><strong>Dark/Light Mode:</strong> Use the toggle switch at the top right to switch between themes. Your preference will be saved.</li>
+                </ol>
+                <p class="mt-4 text-sm text-gray-500 dark:text-gray-400">Remember to ensure your uploaded file contains the necessary columns for accurate analysis.</p>
+            </div>
+        </div>
+    </div>
+
+
+    <footer class="text-center mt-10 text-sm text-gray-500 dark:text-gray-400">
+        <p>&copy; <span id="currentYear"></span> Print Report Generator. All rights reserved.</p>
+    </footer>
+
+    <script>
+        // Set current year in footer
+        document.getElementById('currentYear').textContent = new Date().getFullYear();
+
+        // DOM Elements
+        const fileInputElement = document.getElementById('fileInput');
+        const reportOutputDiv = document.getElementById('reportOutput');
+        const messageArea = document.getElementById('messageArea');
+        const initialMessageDiv = document.getElementById('initialMessage');
+        const pageCostInput = document.getElementById('pageCostInput');
+        const ownerFilterSelect = document.getElementById('ownerFilter');
+        const ownerSearchInput = document.getElementById('ownerSearchInput'); // New search input
+        const yearFilterSelect = document.getElementById('yearFilter');
+        const monthFilterSelect = document.getElementById('monthFilter');
+        const topNFilterInput = document.getElementById('topNFilter');
+        const startDateFilter = document.getElementById('startDateFilter');
+        const endDateFilter = document.getElementById('endDateFilter');
+        const resetDateFiltersBtn = document.getElementById('resetDateFiltersBtn');
+        const clearFiltersBtn = document.getElementById('clearFiltersBtn');
+        const exportCsvBtn = document.getElementById('exportCsvBtn');
+        const exportXlsxBtn = document.getElementById('exportXlsxBtn');
+        const exportPdfBtn = document.getElementById('exportPdfBtn'); // New PDF export button
+
+        const kpiCardsDiv = document.getElementById('kpiCards'); // New KPI section
+        const totalOwnersSpan = document.getElementById('totalOwners');
+        const totalPagesPrintedSpan = document.getElementById('totalPagesPrinted');
+        const estimatedTotalCostSpan = document.getElementById('estimatedTotalCost');
+        const topUserSpan = document.getElementById('topUser');
+        const topUserPagesSpan = document.getElementById('topUserPages');
+        const busiestMonthSpan = document.getElementById('busiestMonth');
+        const busiestMonthPagesSpan = document.getElementById('busiestMonthPages');
+        const avgPagesPerDaySpan = document.getElementById('avgPagesPerDay');
+
+        const visualizationSectionDiv = document.getElementById('visualizationSection');
+        const printChartCanvas = document.getElementById('printChart');
+        const chartTypeSelect = document.getElementById('chartType');
+        const reportViewSelect = document.getElementById('reportViewSelect');
+        const ownerComparisonSelectsDiv = document.getElementById('ownerComparisonSelects');
+        const compareOwner1Select = document.getElementById('compareOwner1');
+        const compareOwner2Select = document.getElementById('compareOwner2');
+
+        const dropArea = document.getElementById('dropArea'); // New drop area
+        const fileNameDisplay = document.getElementById('fileNameDisplay'); // New file name display
+
+        const filtersToggleBtn = document.getElementById('filtersToggleBtn'); // Collapsible filters
+        const filterOptionsDiv = document.getElementById('filterOptions');
+        const filtersToggleIcon = document.getElementById('filtersToggleIcon');
+        const settingsAndFiltersDiv = document.getElementById('settingsAndFilters');
+
+        const helpBtn = document.getElementById('helpBtn'); // Help modal button
+        const helpModal = document.getElementById('helpModal'); // Help modal
+
+        const darkModeToggle = document.getElementById('darkModeToggle'); // Dark mode toggle
+        const themeToggleLabel = document.getElementById('themeToggle');
+
+
+        // Global state variables
+        let globalRawData = []; // [{date: Date, owner: 'name', pages: 10}, ...]
+        let globalAggregatedData = {}; // Original aggregated by owner-year-month (for populating filters)
+        let currentChart = null; // To hold the Chart.js instance
+        let originalHeaders = []; // Store original headers for raw data view
+        let currentSortedColumn = null; // For table sorting
+        let currentSortDirection = 'asc';
+
+        // Expected column names (case-insensitive)
+        const DATE_COL_NAME = "sumitteddate";
+        const OWNER_COL_NAME = "owner";
+        const PAGES_COL_NAME = "totalpages";
+
+        const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+        const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+        // --- Event Listeners ---
+        fileInputElement.addEventListener('change', handleFileSelect);
+        dropArea.addEventListener('dragover', (e) => { e.preventDefault(); dropArea.classList.add('border-indigo-500'); });
+        dropArea.addEventListener('dragleave', () => { dropArea.classList.remove('border-indigo-500'); });
+        dropArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropArea.classList.remove('border-indigo-500');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                fileInputElement.files = files;
+                handleFileSelect({ target: fileInputElement });
+            }
+        });
+
+        ownerFilterSelect.addEventListener('change', applyFilters);
+        ownerSearchInput.addEventListener('input', filterOwnerDropdown); // New: Filter dropdown on search input
+        yearFilterSelect.addEventListener('change', () => {
+            monthFilterSelect.value = '';
+            startDateFilter.value = '';
+            endDateFilter.value = '';
+            applyFilters();
+        });
+        monthFilterSelect.addEventListener('change', () => {
+            yearFilterSelect.value = '';
+            startDateFilter.value = '';
+            endDateFilter.value = '';
+            applyFilters();
+        });
+        topNFilterInput.addEventListener('input', applyFilters);
+        startDateFilter.addEventListener('change', () => {
+            yearFilterSelect.value = '';
+            monthFilterSelect.value = '';
+            applyFilters();
+        });
+        endDateFilter.addEventListener('change', () => {
+            yearFilterSelect.value = '';
+            monthFilterSelect.value = '';
+            applyFilters();
+        });
+        resetDateFiltersBtn.addEventListener('click', () => {
+            startDateFilter.value = '';
+            endDateFilter.value = '';
+            applyFilters();
+        });
+        pageCostInput.addEventListener('input', applyFilters);
+        clearFiltersBtn.addEventListener('click', clearAllFilters);
+        exportCsvBtn.addEventListener('click', () => exportData('csv'));
+        exportXlsxBtn.addEventListener('click', () => exportData('xlsx'));
+        exportPdfBtn.addEventListener('click', exportPdfReport); // New: PDF export
+        chartTypeSelect.addEventListener('change', updateChart);
+        reportViewSelect.addEventListener('change', handleReportViewChange);
+        compareOwner1Select.addEventListener('change', applyFilters);
+        compareOwner2Select.addEventListener('change', applyFilters);
+
+        filtersToggleBtn.addEventListener('click', toggleFilterSection); // Collapsible filters
+        helpBtn.addEventListener('click', () => openModal('helpModal')); // Help modal
+
+        // Dark/Light Mode Toggle
+        darkModeToggle.addEventListener('change', toggleDarkMode);
+        // Initial theme check
+        document.addEventListener('DOMContentLoaded', () => {
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            if (savedTheme === 'dark') {
+                document.body.classList.add('dark');
+                darkModeToggle.checked = true;
+                themeToggleLabel.classList.add('checked');
+                dropArea.classList.add('dark'); // Apply dark mode to drop area
+            } else {
+                document.body.classList.remove('dark');
+                darkModeToggle.checked = false;
+                themeToggleLabel.classList.remove('checked');
+                dropArea.classList.remove('dark');
+            }
+        });
+
+        // --- Core Functions ---
+
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (!file) {
+                showMessage('No file selected.', 'yellow');
+                fileNameDisplay.textContent = '';
+                return;
+            }
+
+            fileNameDisplay.textContent = `Selected: ${file.name}`;
+            const fileName = file.name.toLowerCase();
+            const isCsv = fileName.endsWith('.csv');
+            const isXlsx = fileName.endsWith('.xlsx');
+
+            if (!isCsv && !isXlsx) {
+                showMessage('Invalid file type. Please upload a CSV or XLSX file.', 'red');
+                clearReport();
+                fileInputElement.value = '';
+                fileNameDisplay.textContent = '';
+                return;
+            }
+
+            initialMessageDiv.style.display = 'none';
+            showMessage('Processing file... <span class="loader"></span>', 'blue');
+
+            const reader = new FileReader();
+
+            reader.onload = function(e) {
+                try {
+                    let rawDataArrayFromXLSXorCSV;
+                    if (isXlsx) {
+                        const workbook = XLSX.read(e.target.result, { type: 'binary', cellDates: true });
+                        const firstSheetName = workbook.SheetNames[0];
+                        if (!firstSheetName) throw new Error("XLSX file contains no sheets.");
+                        const worksheet = workbook.Sheets[firstSheetName];
+                        rawDataArrayFromXLSXorCSV = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: true });
+                    } else { // CSV
+                        const lines = e.target.result.split(/\r\n|\n/);
+                        if (lines.length === 0 || lines[0].trim() === '') throw new Error("CSV file is empty.");
+                        rawDataArrayFromXLSXorCSV = lines.map(line => line.split(','));
+                    }
+                    processRawData(rawDataArrayFromXLSXorCSV);
+                } catch (error) {
+                    console.error("Error processing file:", error);
+                    showMessage(`Error processing file: ${error.message}`, 'red');
+                    clearReport();
+                }
+            };
+
+            reader.onerror = function() {
+                showMessage('Error reading file.', 'red');
+                clearReport();
+            };
+
+            if (isXlsx) {
+                reader.readAsBinaryString(file);
+            } else {
+                reader.readAsText(file);
+            }
+        }
+
+        function processRawData(rawDataArray) {
+            try {
+                if (!rawDataArray || rawDataArray.length < 2) {
+                    throw new Error("Input data is empty or only contains headers.");
+                }
+
+                originalHeaders = rawDataArray[0].map(h => String(h || '').trim().replace(/^"|"$/g, ''));
+                const headers = originalHeaders.map(h => h.toLowerCase());
+
+                const dateIndex = headers.indexOf(DATE_COL_NAME);
+                const ownerIndex = headers.indexOf(OWNER_COL_NAME);
+                const pagesIndex = headers.indexOf(PAGES_COL_NAME);
+
+                const missingColumns = [];
+                if (dateIndex === -1) missingColumns.push(DATE_COL_NAME);
+                if (ownerIndex === -1) missingColumns.push(OWNER_COL_NAME);
+                if (pagesIndex === -1) missingColumns.push(PAGES_COL_NAME);
+
+                if (missingColumns.length > 0) {
+                    throw new Error(`Required columns not found: ${missingColumns.join(', ')}. Please ensure your file has these columns (case-insensitive).`);
+                }
+
+                const parsedData = [];
+                let dateParseErrors = 0;
+                let pagesParseErrors = 0;
+
+                for (let i = 1; i < rawDataArray.length; i++) {
+                    const row = rawDataArray[i];
+                    if (!row || row.length === 0 || row.every(cell => !cell || String(cell).trim() === '')) {
+                        continue;
+                    }
+
+                    const owner = String(row[ownerIndex] || '').trim().replace(/^"|"$/g, '');
+                    const dateRaw = row[dateIndex];
+                    const pagesRaw = row[pagesIndex];
+
+                    if (!owner) {
+                        continue;
+                    }
+
+                    const pages = parseInt(pagesRaw);
+                    if (isNaN(pages) || pages < 0) {
+                        pagesParseErrors++;
+                        continue;
+                    }
+
+                    let dateObj;
+                    if (dateRaw instanceof Date) {
+                        dateObj = dateRaw;
+                    } else if (typeof dateRaw === 'number') {
+                        dateObj = new Date((dateRaw - (dateRaw > 60 ? 25569 : 25568)) * 86400 * 1000); // Excel serial date
+                        if (isNaN(dateObj.getTime())) {
+                             dateObj = moment.utc(dateRaw).toDate();
+                        }
+                    } else if (typeof dateRaw === 'string') {
+                        const parsedMoment = moment(dateRaw, [
+                            moment.ISO_8601,
+                            "MM/DD/YYYY HH:mm:ss", "MM/DD/YYYY",
+                            "DD/MM/YYYY HH:mm:ss", "DD/MM/YYYY",
+                            "YYYY-MM-DD HH:mm:ss", "YYYY-MM-DD",
+                            "M/D/YYYY", "D-M-YYYY", "M-D-YYYY",
+                            "YYYY/MM/DD", "YYYY.MM.DD"
+                        ], true);
+                        if (parsedMoment.isValid()) {
+                            dateObj = parsedMoment.toDate();
+                        } else {
+                            dateObj = new Date(dateRaw); // Fallback
+                        }
+                    }
+
+                    if (!dateObj || isNaN(dateObj.getTime())) {
+                        dateParseErrors++;
+                        continue;
+                    }
+
+                    parsedData.push({
+                        date: dateObj,
+                        owner: owner,
+                        pages: pages,
+                        originalRow: row
+                    });
+                }
+
+                if (parsedData.length === 0) {
+                    let errorMessage = "No valid data rows found after parsing. ";
+                    if (dateParseErrors > 0) errorMessage += `${dateParseErrors} date parsing errors. `;
+                    if (pagesParseErrors > 0) errorMessage += `${pagesParseErrors} page count parsing errors. `;
+                    throw new Error(errorMessage + "Please check your file's content and format.");
+                }
+
+                globalRawData = parsedData;
+                globalAggregatedData = aggregateData(globalRawData, 'month');
+
+                populateFilters(globalAggregatedData);
+                applyFilters();
+                settingsAndFiltersDiv.classList.remove('hidden'); // Show filter section
+                kpiCardsDiv.classList.remove('hidden'); // Show KPI cards
+                visualizationSectionDiv.classList.remove('hidden');
+                showMessage('File processed successfully!', 'green');
+
+            } catch (error) {
+                console.error("Error parsing raw data:", error);
+                showMessage(`Error parsing data: ${error.message}`, 'red');
+                clearReport();
+            }
+        }
+
+        function aggregateData(dataToAggregate, granularity = 'month') {
+            const aggregated = {};
+            dataToAggregate.forEach(item => {
+                const year = item.date.getFullYear();
+                let key1, key2;
+
+                if (granularity === 'month') {
+                    key1 = item.date.getMonth() + 1;
+                    key2 = null;
+                } else if (granularity === 'week') {
+                    key1 = moment(item.date).isoWeek();
+                    key2 = item.date.getFullYear();
+                } else if (granularity === 'day') {
+                    key1 = moment(item.date).format('YYYY-MM-DD');
+                    key2 = null;
+                } else {
+                    key1 = item.date.getMonth() + 1;
+                    key2 = null;
+                }
+
+                if (!aggregated[item.owner]) aggregated[item.owner] = {};
+                if (granularity === 'week' || granularity === 'day') {
+                    if (!aggregated[item.owner][key2 || year]) aggregated[item.owner][key2 || year] = {};
+                    if (!aggregated[item.owner][key2 || year][key1]) aggregated[item.owner][key2 || year][key1] = 0;
+                    aggregated[item.owner][key2 || year][key1] += item.pages;
+                } else {
+                    if (!aggregated[item.owner][year]) aggregated[item.owner][year] = {};
+                    if (!aggregated[item.owner][year][key1]) aggregated[item.owner][year][key1] = 0;
+                    aggregated[item.owner][year][key1] += item.pages;
+                }
+            });
+            return aggregated;
+        }
+
+
+        function populateFilters(data) {
+            // Clear current filters
+            ownerFilterSelect.innerHTML = '<option value="">All Owners</option>';
+            yearFilterSelect.innerHTML = '<option value="">All Years</option>';
+            monthFilterSelect.innerHTML = '<option value="">All Months</option>';
+            compareOwner1Select.innerHTML = '<option value="">Select Owner</option>';
+            compareOwner2Select.innerHTML = '<option value="">Select Owner</option>';
+
+            const owners = Object.keys(data).sort((a, b) => a.localeCompare(b));
+            owners.forEach(owner => {
+                const option = document.createElement('option');
+                option.value = owner;
+                option.textContent = owner;
+                ownerFilterSelect.appendChild(option);
+
+                const option1 = option.cloneNode(true);
+                const option2 = option.cloneNode(true);
+                compareOwner1Select.appendChild(option1);
+                compareOwner2Select.appendChild(option2);
+            });
+
+            const years = new Set();
+            for (const owner in data) {
+                for (const year in data[owner]) {
+                    years.add(year);
+                }
+            }
+            Array.from(years).sort((a, b) => parseInt(a) - parseInt(b)).forEach(year => {
+                const option = document.createElement('option');
+                option.value = year;
+                option.textContent = year;
+                yearFilterSelect.appendChild(option);
+            });
+
+            monthNames.forEach((month, index) => {
+                const option = document.createElement('option');
+                option.value = index + 1;
+                option.textContent = month;
+                monthFilterSelect.appendChild(option);
+            });
+        }
+
+        // New: Filter owner dropdown based on search input
+        function filterOwnerDropdown() {
+            const searchText = ownerSearchInput.value.toLowerCase();
+            const options = ownerFilterSelect.querySelectorAll('option');
+            let firstMatchValue = '';
+
+            // Hide all options initially
+            options.forEach(option => {
+                if (option.value === "") { // Always show "All Owners"
+                    option.style.display = '';
+                } else {
+                    option.style.display = 'none';
+                }
+            });
+
+            // Show matching options
+            for (let i = 0; i < options.length; i++) {
+                const option = options[i];
+                if (option.textContent.toLowerCase().includes(searchText)) {
+                    option.style.display = '';
+                    if (!firstMatchValue && option.value !== "") {
+                        firstMatchValue = option.value;
+                    }
+                }
+            }
+
+            // If a search input exists and there's a first match, select it in the hidden select
+            // This allows the main filter to react to the search indirectly.
+            if (searchText && firstMatchValue) {
+                ownerFilterSelect.value = firstMatchValue;
+            } else if (!searchText) {
+                ownerFilterSelect.value = ''; // Clear selection if search is cleared
+            }
+            applyFilters(); // Re-apply filters after owner selection or search
+        }
+
+
+        function handleReportViewChange() {
+            const selectedView = reportViewSelect.value;
+            if (selectedView === 'owner_comparison') {
+                ownerComparisonSelectsDiv.style.display = 'block';
+            } else {
+                ownerComparisonSelectsDiv.style.display = 'none';
+            }
+            applyFilters();
+        }
+
+        function applyFilters() {
+            if (globalRawData.length === 0) {
+                clearReport();
+                return;
+            }
+
+            const selectedOwner = ownerFilterSelect.value;
+            const selectedYear = yearFilterSelect.value;
+            const selectedMonth = monthFilterSelect.value;
+            const topN = parseInt(topNFilterInput.value);
+            const startDate = startDateFilter.value ? moment(startDateFilter.value).startOf('day') : null;
+            const endDate = endDateFilter.value ? moment(endDateFilter.value).endOf('day') : null;
+            const pageCost = parseFloat(pageCostInput.value);
+            const reportView = reportViewSelect.value;
+            const compareOwner1 = compareOwner1Select.value;
+            const compareOwner2 = compareOwner2Select.value;
+
+            let filteredRawData = globalRawData.filter(item => {
+                const itemDate = moment(item.date);
+                let matches = true;
+
+                if (selectedOwner && item.owner !== selectedOwner) matches = false;
+                if (selectedYear && item.date.getFullYear() !== parseInt(selectedYear)) matches = false;
+                if (selectedMonth && item.date.getMonth() + 1 !== parseInt(selectedMonth)) matches = false;
+                if (startDate && itemDate.isBefore(startDate)) matches = false;
+                if (endDate && itemDate.isAfter(endDate)) matches = false;
+
+                if (reportView === 'owner_comparison' && (compareOwner1 || compareOwner2)) {
+                    if (compareOwner1 && item.owner === compareOwner1 && item.owner !== compareOwner2) {
+                        // Include owner 1 if only owner 1 is selected
+                    } else if (compareOwner2 && item.owner === compareOwner2 && item.owner !== compareOwner1) {
+                        // Include owner 2 if only owner 2 is selected
+                    } else if (compareOwner1 && compareOwner2) {
+                        if (item.owner !== compareOwner1 && item.owner !== compareOwner2) matches = false;
+                    } else { // No owners selected for comparison, so filter nothing specific to comparison
+                        // If one or both are empty, the existing filters apply.
+                    }
+                }
+
+                return matches;
+            });
+
+            let aggregationGranularity = 'month';
+            if (reportView === 'total_pages_by_week') {
+                aggregationGranularity = 'week';
+            } else if (reportView === 'total_pages_by_day') {
+                aggregationGranularity = 'day';
+            } else if (reportView === 'total_pages_by_year') {
+                aggregationGranularity = 'year'; // Custom granularity for year
+            }
+
+            const filteredAggregatedData = aggregateData(filteredRawData, aggregationGranularity);
+
+            let totalPages = 0;
+            const ownerPageTotals = {};
+            const monthlyPageTotals = {};
+            const dailyPageTotals = {};
+            const weeklyPageTotals = {};
+            const yearlyPageTotals = {};
+
+            filteredRawData.forEach(item => {
+                totalPages += item.pages;
+                ownerPageTotals[item.owner] = (ownerPageTotals[item.owner] || 0) + item.pages;
+
+                const monthKey = `${item.date.getFullYear()}-${String(item.date.getMonth() + 1).padStart(2, '0')}`;
+                monthlyPageTotals[monthKey] = (monthlyPageTotals[monthKey] || 0) + item.pages;
+
+                const dayKey = moment(item.date).format('YYYY-MM-DD');
+                dailyPageTotals[dayKey] = (dailyPageTotals[dayKey] || 0) + item.pages;
+
+                const weekKey = `${item.date.getFullYear()}-W${String(moment(item.date).isoWeek()).padStart(2, '0')}`;
+                weeklyPageTotals[weekKey] = (weeklyPageTotals[weekKey] || 0) + item.pages;
+
+                const yearKey = item.date.getFullYear();
+                yearlyPageTotals[yearKey] = (yearlyPageTotals[yearKey] || 0) + item.pages;
+            });
+
+            let finalAggregatedDataForDisplay = {};
+            if (!isNaN(topN) && topN > 0 && reportView !== 'raw_data_table' && reportView !== 'owner_comparison' && reportView !== 'total_pages_by_month' && reportView !== 'total_pages_by_year' && reportView !== 'total_pages_by_week' && reportView !== 'total_pages_by_day') {
+                const sortedOwners = Object.entries(ownerPageTotals)
+                    .sort(([, pagesA], [, pagesB]) => pagesB - pagesA)
+                    .slice(0, topN)
+                    .map(([owner]) => owner);
+
+                sortedOwners.forEach(owner => {
+                    if (filteredAggregatedData[owner]) {
+                        finalAggregatedDataForDisplay[owner] = filteredAggregatedData[owner];
+                    }
+                });
+            } else {
+                finalAggregatedDataForDisplay = filteredAggregatedData;
+            }
+            
+            let activeDays = 0;
+            if (filteredRawData.length > 0) {
+                const uniqueDates = new Set();
+                filteredRawData.forEach(item => uniqueDates.add(moment(item.date).format('YYYY-MM-DD')));
+                activeDays = uniqueDates.size;
+            }
+
+            updateKpiCards(
+                Object.keys(ownerPageTotals).length,
+                totalPages,
+                pageCost,
+                ownerPageTotals,
+                monthlyPageTotals,
+                activeDays
+            );
+
+            updateChart(finalAggregatedDataForDisplay, chartTypeSelect.value, monthlyPageTotals, ownerPageTotals);
+            displayReport(
+                finalAggregatedDataForDisplay,
+                reportView,
+                ownerPageTotals,
+                dailyPageTotals,
+                weeklyPageTotals,
+                yearlyPageTotals,
+                filteredRawData,
+                compareOwner1,
+                compareOwner2
+            );
+        }
+
+        function displayReport(
+            data,
+            viewType,
+            ownerTotalsForTopN,
+            dailyTotals,
+            weeklyTotals,
+            yearlyTotals,
+            rawData,
+            compareOwner1,
+            compareOwner2
+        ) {
+            reportOutputDiv.innerHTML = '';
+            currentSortedColumn = null; // Reset sorting state for new report display
+
+            if (Object.keys(data).length === 0 && viewType !== 'raw_data_table' && viewType !== 'owner_comparison') {
+                showMessage('No data matches the selected filters. Please adjust your filter criteria.', 'yellow');
+                initialMessageDiv.style.display = 'block';
+                return;
+            }
+            if (viewType === 'raw_data_table' && rawData.length === 0) {
+                 showMessage('No raw data matches the selected filters.', 'yellow');
+                 initialMessageDiv.style.display = 'block';
+                 return;
+            }
+            if (viewType === 'owner_comparison' && (!compareOwner1 || !compareOwner2)) {
+                showMessage('Please select two owners to compare.', 'yellow');
+                initialMessageDiv.style.display = 'block';
+                return;
+            }
+
+            showMessage('Report generated successfully!', 'green');
+            initialMessageDiv.style.display = 'none';
+
+            const owners = Object.keys(data).sort((a, b) => a.localeCompare(b));
+
+            switch(viewType) {
+                case 'owner_monthly_breakdown':
+                    displayOwnerMonthlyBreakdown(data, owners);
+                    break;
+                case 'total_pages_by_owner':
+                    displayTotalPagesByOwner(ownerTotalsForTopN);
+                    break;
+                case 'total_pages_by_month':
+                    displayTotalPagesByMonth(data);
+                    break;
+                case 'total_pages_by_year':
+                    displayTotalPagesByYear(data);
+                    break;
+                case 'total_pages_by_week':
+                    displayTotalPagesByWeek(data);
+                    break;
+                case 'total_pages_by_day':
+                    displayTotalPagesByDay(data);
+                    break;
+                case 'raw_data_table':
+                    displayRawDataTable(rawData);
+                    break;
+                case 'owner_comparison':
+                    displayOwnerComparison(ownerTotalsForTopN, compareOwner1, compareOwner2);
+                    break;
+                default:
+                    displayOwnerMonthlyBreakdown(data, owners);
+            }
+        }
+
+        function displayOwnerMonthlyBreakdown(data, owners) {
+            let tableData = [];
+            const pageCost = parseFloat(pageCostInput.value);
+
+            for (const owner of owners) {
+                const ownerData = data[owner];
+                const years = Object.keys(ownerData).sort((a, b) => parseInt(a) - parseInt(b));
+                for (const year of years) {
+                    const yearData = ownerData[year];
+                    const months = Object.keys(yearData).sort((a, b) => parseInt(a) - parseInt(b));
+                    for (const monthKey of months) {
+                        const totalPages = yearData[monthKey];
+                        const estimatedCost = (totalPages * pageCost).toFixed(2);
+                        tableData.push({
+                            owner: owner,
+                            year: year,
+                            monthNum: parseInt(monthKey),
+                            monthName: monthNames[parseInt(monthKey) - 1],
+                            pages: totalPages,
+                            cost: estimatedCost
+                        });
+                    }
+                }
+            }
+
+            const headers = [
+                { id: 'owner', name: 'Owner', type: 'string' },
+                { id: 'year', name: 'Year', type: 'number' },
+                { id: 'monthName', name: 'Month', type: 'string' },
+                { id: 'pages', name: 'Total Pages', type: 'number' },
+                { id: 'cost', name: 'Estimated Cost', type: 'number' }
+            ];
+            createSortableTable(headers, tableData, 'owner_monthly_breakdown_table');
+        }
+
+        function displayTotalPagesByOwner(ownerTotals) {
+            const tableData = [];
+            const pageCost = parseFloat(pageCostInput.value);
+
+            const sortedOwners = Object.entries(ownerTotals).sort(([, pagesA], [, pagesB]) => pagesB - pagesA);
+
+            sortedOwners.forEach(([owner, pages]) => {
+                const estimatedCost = (pages * pageCost).toFixed(2);
+                tableData.push({
+                    owner: owner,
+                    pages: pages,
+                    cost: estimatedCost
+                });
+            });
+            const headers = [
+                { id: 'owner', name: 'Owner', type: 'string' },
+                { id: 'pages', name: 'Total Pages', type: 'number' },
+                { id: 'cost', name: 'Estimated Cost', type: 'number' }
+            ];
+            createSortableTable(headers, tableData, 'total_pages_by_owner_table');
+        }
+
+        function displayTotalPagesByMonth(data) {
+            const monthlyTotals = {};
+            for (const owner in data) {
+                for (const year in data[owner]) {
+                    for (const month in data[owner][year]) {
+                        const monthKey = `${year}-${String(month).padStart(2, '0')}`;
+                        monthlyTotals[monthKey] = (monthlyTotals[monthKey] || 0) + data[owner][year][month];
+                    }
+                }
+            }
+
+            const tableData = [];
+            const pageCost = parseFloat(pageCostInput.value);
+            const sortedMonths = Object.entries(monthlyTotals).sort((a, b) => a[0].localeCompare(b[0]));
+
+            sortedMonths.forEach(([monthKey, pages]) => {
+                const [year, monthNum] = monthKey.split('-');
+                const monthName = monthNames[parseInt(monthNum) - 1];
+                const estimatedCost = (pages * pageCost).toFixed(2);
+                tableData.push({
+                    month: `${monthName} ${year}`,
+                    sortKey: monthKey, // For sorting by month chronologically
+                    pages: pages,
+                    cost: estimatedCost
+                });
+            });
+
+            const headers = [
+                { id: 'month', name: 'Month', type: 'string', sortKey: 'sortKey' },
+                { id: 'pages', name: 'Total Pages', type: 'number' },
+                { id: 'cost', name: 'Estimated Cost', type: 'number' }
+            ];
+            createSortableTable(headers, tableData, 'total_pages_by_month_table');
+        }
+
+        function displayTotalPagesByYear(data) {
+            const yearlyTotals = {};
+            for (const owner in data) {
+                for (const year in data[owner]) {
+                    for (const month in data[owner][year]) {
+                        yearlyTotals[year] = (yearlyTotals[year] || 0) + data[owner][year][month];
+                    }
+                }
+            }
+
+            const tableData = [];
+            const pageCost = parseFloat(pageCostInput.value);
+            const sortedYears = Object.entries(yearlyTotals).sort((a, b) => parseInt(a[0]) - parseInt(b[0]));
+
+            sortedYears.forEach(([year, pages]) => {
+                const estimatedCost = (pages * pageCost).toFixed(2);
+                tableData.push({
+                    year: year,
+                    pages: pages,
+                    cost: estimatedCost
+                });
+            });
+            const headers = [
+                { id: 'year', name: 'Year', type: 'number' },
+                { id: 'pages', name: 'Total Pages', type: 'number' },
+                { id: 'cost', name: 'Estimated Cost', type: 'number' }
+            ];
+            createSortableTable(headers, tableData, 'total_pages_by_year_table');
+        }
+
+        function displayTotalPagesByWeek(data) {
+            const weeklyTotals = {};
+            for (const owner in data) {
+                for (const year in data[owner]) {
+                    for (const weekKey in data[owner][year]) {
+                        const fullWeekKey = `${year}-W${String(weekKey).padStart(2, '0')}`;
+                        weeklyTotals[fullWeekKey] = (weeklyTotals[fullWeekKey] || 0) + data[owner][year][weekKey];
+                    }
+                }
+            }
+
+            const tableData = [];
+            const pageCost = parseFloat(pageCostInput.value);
+            const sortedWeeks = Object.entries(weeklyTotals).sort((a, b) => a[0].localeCompare(b[0]));
+
+            sortedWeeks.forEach(([weekKey, pages]) => {
+                const estimatedCost = (pages * pageCost).toFixed(2);
+                tableData.push({
+                    week: weekKey,
+                    pages: pages,
+                    cost: estimatedCost
+                });
+            });
+            const headers = [
+                { id: 'week', name: 'Week', type: 'string' },
+                { id: 'pages', name: 'Total Pages', type: 'number' },
+                { id: 'cost', name: 'Estimated Cost', type: 'number' }
+            ];
+            createSortableTable(headers, tableData, 'total_pages_by_week_table');
+        }
+
+        function displayTotalPagesByDay(data) {
+            const dailyTotals = {};
+            for (const owner in data) {
+                for (const year in data[owner]) {
+                    for (const dayKey in data[owner][year]) {
+                        dailyTotals[dayKey] = (dailyTotals[dayKey] || 0) + data[owner][year][dayKey];
+                    }
+                }
+            }
+
+            const tableData = [];
+            const pageCost = parseFloat(pageCostInput.value);
+            const sortedDays = Object.entries(dailyTotals).sort((a, b) => a[0].localeCompare(b[0]));
+
+            sortedDays.forEach(([dayKey, pages]) => {
+                const dateMoment = moment(dayKey);
+                const dayOfWeek = dayNames[dateMoment.day()];
+                const estimatedCost = (pages * pageCost).toFixed(2);
+                tableData.push({
+                    date: dateMoment.format('YYYY-MM-DD'),
+                    dayOfWeek: dayOfWeek,
+                    pages: pages,
+                    cost: estimatedCost
+                });
+            });
+            const headers = [
+                { id: 'date', name: 'Date', type: 'string' },
+                { id: 'dayOfWeek', name: 'Day of Week', type: 'string' },
+                { id: 'pages', name: 'Total Pages', type: 'number' },
+                { id: 'cost', name: 'Estimated Cost', type: 'number' }
+            ];
+            createSortableTable(headers, tableData, 'total_pages_by_day_table');
+        }
+
+        function displayRawDataTable(rawData) {
+            if (rawData.length === 0) {
+                showMessage('No raw data available for the selected filters.', 'yellow');
+                return;
+            }
+
+            const container = document.createElement('div');
+            container.className = 'raw-data-table-container shadow-lg';
+
+            const table = document.createElement('table');
+            table.className = 'raw-data-table';
+
+            const thead = table.createTHead();
+            const headerRow = thead.insertRow();
+            originalHeaders.forEach(headerText => {
+                const th = document.createElement('th');
+                th.textContent = headerText;
+                headerRow.appendChild(th);
+            });
+
+            const tbody = table.createTBody();
+            rawData.forEach(item => {
+                const row = tbody.insertRow();
+                item.originalRow.forEach(cellValue => {
+                    const td = row.insertCell();
+                    td.textContent = String(cellValue || '');
+                });
+            });
+
+            container.appendChild(table);
+            reportOutputDiv.appendChild(container);
+        }
+
+        function displayOwnerComparison(ownerTotals, owner1, owner2) {
+            const pages1 = ownerTotals[owner1] || 0;
+            const pages2 = ownerTotals[owner2] || 0;
+            const pageCost = parseFloat(pageCostInput.value);
+
+            const cost1 = (pages1 * pageCost).toFixed(2);
+            const cost2 = (pages2 * pageCost).toFixed(2);
+
+            const comparisonDiv = document.createElement('div');
+            comparisonDiv.className = 'bg-gray-50 dark:bg-gray-800 p-6 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700';
+            comparisonDiv.innerHTML = `
+                <h3 class="text-2xl font-semibold text-indigo-700 dark:text-indigo-400 mb-4 pb-2 border-b border-indigo-200 dark:border-indigo-600">Owner Comparison</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-lg">
+                    <div class="p-4 bg-white dark:bg-gray-700 rounded-lg shadow-md transition-colors duration-300">
+                        <p class="font-bold text-xl text-indigo-800 dark:text-indigo-200 mb-2">${escapeHtml(owner1)}</p>
+                        <p class="text-gray-700 dark:text-gray-300">Total Pages: <span class="font-semibold text-gray-900 dark:text-gray-100">${pages1.toLocaleString()}</span></p>
+                        <p class="text-gray-700 dark:text-gray-300">Estimated Cost: <span class="font-semibold text-gray-900 dark:text-gray-100">$${cost1}</span></p>
+                    </div>
+                    <div class="p-4 bg-white dark:bg-gray-700 rounded-lg shadow-md transition-colors duration-300">
+                        <p class="font-bold text-xl text-indigo-800 dark:text-indigo-200 mb-2">${escapeHtml(owner2)}</p>
+                        <p class="text-gray-700 dark:text-gray-300">Total Pages: <span class="font-semibold text-gray-900 dark:text-gray-100">${pages2.toLocaleString()}</span></p>
+                        <p class="text-gray-700 dark:text-gray-300">Estimated Cost: <span class="font-semibold text-gray-900 dark:text-gray-100">$${cost2}</span></p>
+                    </div>
+                </div>
+                <div class="mt-6 text-center text-xl font-bold text-gray-900 dark:text-gray-100">
+                    ${pages1 > pages2 ? `${escapeHtml(owner1)} printed more pages!` : pages2 > pages1 ? `${escapeHtml(owner2)} printed more pages!` : 'Both printed the same number of pages!'}
+                </div>
+            `;
+            reportOutputDiv.appendChild(comparisonDiv);
+        }
+
+        // New: Dynamic Sortable Table Creation
+        function createSortableTable(headers, data, tableId) {
+            const table = document.createElement('table');
+            table.id = tableId; // Set an ID for easier PDF export targeting
+            table.className = 'report-table shadow-lg rounded-lg overflow-hidden';
+            const thead = table.createTHead();
+            const headerRow = thead.insertRow();
+            headerRow.className = 'transition-colors duration-300';
+
+            headers.forEach(headerDef => {
+                const th = document.createElement('th');
+                th.textContent = headerDef.name;
+                th.setAttribute('data-column-id', headerDef.id);
+                th.setAttribute('data-column-type', headerDef.type);
+                if (headerDef.sortKey) {
+                     th.setAttribute('data-sort-key', headerDef.sortKey);
+                }
+                th.addEventListener('click', () => sortTable(tableId, headerDef.id, headerDef.type, headerDef.sortKey));
+                headerRow.appendChild(th);
+            });
+
+            const tbody = table.createTBody();
+            renderTableBody(tbody, headers, data); // Initial render
+
+            reportOutputDiv.appendChild(table);
+        }
+
+        // New: Render/Re-render table body after sorting
+        function renderTableBody(tbody, headers, data) {
+            tbody.innerHTML = ''; // Clear existing rows
+            const pageCost = parseFloat(pageCostInput.value); // Re-get cost for rendering
+
+            data.forEach(rowData => {
+                const row = tbody.insertRow();
+                row.className = 'transition-colors duration-300';
+                headers.forEach(headerDef => {
+                    const cell = row.insertCell();
+                    let value = rowData[headerDef.id];
+                    if (headerDef.id === 'pages' || headerDef.id === 'cost') {
+                        // Special formatting for numbers/currency
+                        value = headerDef.id === 'pages' ? value.toLocaleString() : `$${parseFloat(value).toFixed(2)}`;
+                    }
+                    cell.textContent = value;
+                });
+            });
+        }
+
+        // New: Sort table function
+        function sortTable(tableId, columnId, columnType, sortKey) {
+            const table = document.getElementById(tableId);
+            if (!table) return;
+
+            const tbody = table.querySelector('tbody');
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+            const headerCells = table.querySelectorAll('th');
+
+            // Reset sort indicators
+            headerCells.forEach(th => {
+                th.classList.remove('sort-asc', 'sort-desc');
+            });
+
+            // Determine sort direction
+            if (currentSortedColumn === columnId) {
+                currentSortDirection = currentSortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentSortedColumn = columnId;
+                currentSortDirection = 'asc';
+            }
+
+            // Add new sort indicator
+            const currentHeaderCell = table.querySelector(`th[data-column-id="${columnId}"]`);
+            if (currentHeaderCell) {
+                currentHeaderCell.classList.add(`sort-${currentSortDirection}`);
+            }
+
+            // Get original data from the global scope based on the tableId or reconstruct
+            // This is a simplification; a more robust solution would pass the original data
+            // to the table creation function and then use it here.
+            // For now, we'll try to extract from table rows.
+            const rawDataFromTable = Array.from(table.rows).slice(1).map(row => {
+                const obj = {};
+                row.querySelectorAll('td').forEach((cell, index) => {
+                    const headerId = headers[index].id; // Assuming headers array is available globally
+                    obj[headerId] = headers[index].type === 'number' ? parseFloat(cell.textContent.replace(/[^0-9.-]+/g,"")) : cell.textContent;
+                     if (headers[index].sortKey) {
+                         obj[headers[index].sortKey] = headers[index].type === 'number' ? parseFloat(cell.textContent.replace(/[^0-9.-]+/g,"")) : cell.textContent;
+                     }
+                });
+                return obj;
+            });
+
+
+            // Sort the data
+            rawDataFromTable.sort((a, b) => {
+                let valA = sortKey ? a[sortKey] : a[columnId];
+                let valB = sortKey ? b[sortKey] : b[columnId];
+
+                if (columnType === 'number') {
+                    valA = parseFloat(valA);
+                    valB = parseFloat(valB);
+                    if (isNaN(valA)) valA = 0; // Handle non-numeric gracefully
+                    if (isNaN(valB)) valB = 0;
+                    return currentSortDirection === 'asc' ? valA - valB : valB - valA;
+                } else { // String comparison
+                    if (valA === null || valA === undefined) valA = '';
+                    if (valB === null || valB === undefined) valB = '';
+                    return currentSortDirection === 'asc' ? String(valA).localeCompare(String(valB)) : String(valB).localeCompare(String(valA));
+                }
+            });
+
+            // Re-render the tbody with sorted data
+            const headersForRender = Array.from(table.querySelector('thead').querySelectorAll('th')).map(th => ({
+                id: th.getAttribute('data-column-id'),
+                type: th.getAttribute('data-column-type'),
+                sortKey: th.getAttribute('data-sort-key')
+            }));
+            renderTableBody(tbody, headersForRender, rawDataFromTable);
+        }
+
+        function clearReport() {
+            reportOutputDiv.innerHTML = '';
+            initialMessageDiv.style.display = 'block';
+            settingsAndFiltersDiv.classList.add('hidden');
+            kpiCardsDiv.classList.add('hidden');
+            visualizationSectionDiv.classList.add('hidden');
+            ownerComparisonSelectsDiv.style.display = 'none';
+            if (fileInputElement) {
+                fileInputElement.value = '';
+                fileNameDisplay.textContent = '';
+            }
+            clearAllFilters(false);
+            globalRawData = [];
+            globalAggregatedData = {};
+            originalHeaders = [];
+            if (currentChart) {
+                currentChart.destroy();
+                currentChart = null;
+            }
+            updateKpiCards(0, 0, 0, {}, {}, 0); // Reset KPIs
+        }
+
+        function clearAllFilters(andApply = true) {
+            ownerFilterSelect.value = '';
+            ownerSearchInput.value = ''; // Clear search input as well
+            yearFilterSelect.value = '';
+            monthFilterSelect.value = '';
+            topNFilterInput.value = '';
+            startDateFilter.value = '';
+            endDateFilter.value = '';
+            reportViewSelect.value = 'owner_monthly_breakdown';
+            chartTypeSelect.value = 'bar';
+            compareOwner1Select.value = '';
+            compareOwner2Select.value = '';
+            ownerComparisonSelectsDiv.style.display = 'none';
+            if (andApply) {
+                applyFilters();
+            }
+        }
+
+        function updateKpiCards(numOwners, totalPages, pageCost, ownerPageTotals, monthlyPageTotals, activeDays) {
+            totalPagesPrintedSpan.textContent = totalPages.toLocaleString();
+            const estimatedCost = (totalPages * pageCost).toFixed(2);
+            estimatedTotalCostSpan.textContent = `$${estimatedCost}`;
+            totalOwnersSpan.textContent = numOwners;
+            avgPagesPerDaySpan.textContent = activeDays > 0 ? (totalPages / activeDays).toLocaleString(undefined, { maximumFractionDigits: 2 }) : '0';
+
+            // Top User KPI
+            if (numOwners > 0) {
+                const sortedOwners = Object.entries(ownerPageTotals).sort(([, pagesA], [, pagesB]) => pagesB - pagesA);
+                topUserSpan.textContent = escapeHtml(sortedOwners[0][0]);
+                topUserPagesSpan.textContent = `${sortedOwners[0][1].toLocaleString()} pages`;
+            } else {
+                topUserSpan.textContent = 'N/A';
+                topUserPagesSpan.textContent = '0 pages';
+            }
+
+            // Busiest Month KPI
+            if (Object.keys(monthlyPageTotals).length > 0) {
+                const sortedMonths = Object.entries(monthlyPageTotals).sort(([, pagesA], [, pagesB]) => pagesB - pagesA);
+                const [year, monthNum] = sortedMonths[0][0].split('-');
+                busiestMonthSpan.textContent = `${monthNames[parseInt(monthNum) - 1]} ${year}`;
+                busiestMonthPagesSpan.textContent = `${sortedMonths[0][1].toLocaleString()} pages`;
+            } else {
+                busiestMonthSpan.textContent = 'N/A';
+                busiestMonthPagesSpan.textContent = '0 pages';
+            }
+        }
+
+        function updateChart(data, chartTypeOverride, monthlyPageTotals, ownerPageTotals) {
+            if (currentChart) {
+                currentChart.destroy();
+            }
+
+            const chartType = chartTypeOverride || chartTypeSelect.value;
+            let labels = [];
+            let chartData = [];
+            let chartTitle = '';
+
+            if (chartType === 'bar') {
+                chartTitle = 'Total Pages Printed by Owner (Filtered)';
+                const sortedOwners = Object.entries(ownerPageTotals).sort(([, pagesA], [, pagesB]) => pagesB - pagesA);
+                labels = sortedOwners.map(([owner]) => owner);
+                chartData = sortedOwners.map(([, pages]) => pages);
+
+            } else if (chartType === 'line') {
+                chartTitle = 'Total Pages Printed Over Time (Monthly, Filtered)';
+                labels = Object.keys(monthlyPageTotals).sort();
+                chartData = labels.map(monthKey => monthlyPageTotals[monthKey]);
+                labels = labels.map(key => {
+                    const [year, monthNum] = key.split('-');
+                    return `${monthNames[parseInt(monthNum) - 1].substring(0, 3)} ${year}`;
+                });
+            }
+
+            currentChart = new Chart(printChartCanvas, {
+                type: chartType === 'bar' ? 'bar' : 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Total Pages',
+                        data: chartData,
+                        backgroundColor: document.body.classList.contains('dark') ? 'rgba(167, 139, 250, 0.7)' : 'rgba(75, 192, 192, 0.6)',
+                        borderColor: document.body.classList.contains('dark') ? 'rgba(167, 139, 250, 1)' : 'rgba(75, 192, 192, 1)',
+                        borderWidth: 1,
+                        fill: chartType === 'line' ? true : false,
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: chartTitle,
+                            font: {
+                                size: 18,
+                                color: document.body.classList.contains('dark') ? '#e2e8f0' : '#475569'
+                            },
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    if (context.parsed.y !== null) {
+                                        label += context.parsed.y.toLocaleString() + ' pages';
+                                        const pageCost = parseFloat(pageCostInput.value);
+                                        if (!isNaN(pageCost) && pageCost > 0) {
+                                            label += ` ($${(context.parsed.y * pageCost).toFixed(2)})`;
+                                        }
+                                    }
+                                    return label;
+                                }
+                            }
+                        },
+                        legend: {
+                            labels: {
+                                color: document.body.classList.contains('dark') ? '#a0aec0' : '#475569'
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Total Pages',
+                                color: document.body.classList.contains('dark') ? '#a0aec0' : '#475569'
+                            },
+                            ticks: {
+                                callback: function(value) {
+                                    return value.toLocaleString();
+                                },
+                                color: document.body.classList.contains('dark') ? '#a0aec0' : '#475569'
+                            },
+                            grid: {
+                                color: document.body.classList.contains('dark') ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: chartType === 'bar' ? 'Owner' : 'Month',
+                                color: document.body.classList.contains('dark') ? '#a0aec0' : '#475569'
+                            },
+                            ticks: {
+                                color: document.body.classList.contains('dark') ? '#a0aec0' : '#475569'
+                            },
+                             grid: {
+                                color: document.body.classList.contains('dark') ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+
+        function showMessage(message, type = 'info') {
+            messageArea.innerHTML = message;
+            let bgColor, textColor, borderColor;
+            switch (type) {
+                case 'red':
+                    bgColor = 'bg-red-100'; textColor = 'text-red-700'; borderColor = 'border-red-400';
+                    break;
+                case 'green':
+                    bgColor = 'bg-green-100'; textColor = 'text-green-700'; borderColor = 'border-green-400';
+                    break;
+                case 'yellow':
+                    bgColor = 'bg-yellow-100'; textColor = 'text-yellow-700'; borderColor = 'border-yellow-400';
+                    break;
+                case 'blue':
+                default:
+                    bgColor = 'bg-blue-100'; textColor = 'text-blue-700'; borderColor = 'border-blue-400';
+                    break;
+            }
+            // Add dark mode classes dynamically
+            if (document.body.classList.contains('dark')) {
+                 switch (type) {
+                    case 'red': bgColor = 'bg-red-800'; textColor = 'text-red-100'; borderColor = 'border-red-700'; break;
+                    case 'green': bgColor = 'bg-green-800'; textColor = 'text-green-100'; borderColor = 'border-green-700'; break;
+                    case 'yellow': bgColor = 'bg-yellow-800'; textColor = 'text-yellow-100'; borderColor = 'border-yellow-700'; break;
+                    case 'blue': default: bgColor = 'bg-blue-800'; textColor = 'text-blue-100'; borderColor = 'border-blue-700'; break;
+                }
+            }
+            messageArea.className = `p-4 mb-6 text-sm rounded-md border ${bgColor} ${textColor} ${borderColor} flex items-center`;
+        }
+
+        function escapeHtml(unsafe) {
+            if (typeof unsafe !== 'string') return '';
+            return unsafe
+                   .replace(/&/g, "&amp;")
+                   .replace(/</g, "&lt;")
+                   .replace(/>/g, "&gt;")
+                   .replace(/"/g, "&quot;")
+                   .replace(/'/g, "&#039;");
+        }
+
+        // --- Export Functionality (PDF Enhanced) ---
+        function exportData(format) {
+            const reportView = reportViewSelect.value;
+            let exportDataArray = [];
+            let fileNameSuffix = '';
+
+            const pageCost = parseFloat(pageCostInput.value);
+
+            const selectedOwner = ownerFilterSelect.value;
+            const selectedYear = yearFilterSelect.value;
+            const selectedMonth = monthFilterSelect.value;
+            const topN = parseInt(topNFilterInput.value);
+            const startDate = startDateFilter.value ? moment(startDateFilter.value).startOf('day') : null;
+            const endDate = endDateFilter.value ? moment(endDateFilter.value).endOf('day') : null;
+            const compareOwner1 = compareOwner1Select.value;
+            const compareOwner2 = compareOwner2Select.value;
+
+            let filteredRawDataForExport = globalRawData.filter(item => {
+                const itemDate = moment(item.date);
+                let matches = true;
+                if (selectedOwner && item.owner !== selectedOwner) matches = false;
+                if (selectedYear && item.date.getFullYear() !== parseInt(selectedYear)) matches = false;
+                if (selectedMonth && item.date.getMonth() + 1 !== parseInt(selectedMonth)) matches = false;
+                if (startDate && itemDate.isBefore(startDate)) matches = false;
+                if (endDate && itemDate.isAfter(endDate)) matches = false;
+
+                if (reportView === 'owner_comparison' && (compareOwner1 || compareOwner2)) {
+                    if (compareOwner1 && item.owner === compareOwner1 && item.owner !== compareOwner2) {
+                    } else if (compareOwner2 && item.owner === compareOwner2 && item.owner !== compareOwner1) {
+                    } else if (compareOwner1 && compareOwner2) {
+                        if (item.owner !== compareOwner1 && item.owner !== compareOwner2) matches = false;
+                    }
+                }
+                return matches;
+            });
+
+            const ownerPageTotalsForExport = {};
+            filteredRawDataForExport.forEach(item => {
+                ownerPageTotalsForExport[item.owner] = (ownerPageTotalsForExport[item.owner] || 0) + item.pages;
+            });
+
+            let finalOwnersForExport = Object.keys(ownerPageTotalsForExport);
+            if (!isNaN(topN) && topN > 0 && reportView !== 'raw_data_table' && reportView !== 'owner_comparison') {
+                finalOwnersForExport = Object.entries(ownerPageTotalsForExport)
+                    .sort(([, pagesA], [, pagesB]) => pagesB - pagesA)
+                    .slice(0, topN)
+                    .map(([owner]) => owner);
+            }
+
+            switch(reportView) {
+                case 'owner_monthly_breakdown':
+                    exportDataArray.push(['Owner', 'Year', 'Month', 'Total Pages', 'Estimated Cost']);
+                    const aggregatedForExport = aggregateData(filteredRawDataForExport, 'month');
+                    const owners = Object.keys(aggregatedForExport).filter(owner => finalOwnersForExport.includes(owner)).sort((a,b) => a.localeCompare(b));
+                    for (const owner of owners) {
+                        const years = Object.keys(aggregatedForExport[owner]).sort((a,b) => parseInt(a) - parseInt(b));
+                        for (const year of years) {
+                            const months = Object.keys(aggregatedForExport[owner][year]).sort((a,b) => parseInt(a) - parseInt(b));
+                            for (const month of months) {
+                                const pages = aggregatedForExport[owner][year][month];
+                                const cost = (pages * pageCost).toFixed(2);
+                                exportDataArray.push([owner, year, monthNames[parseInt(month) - 1], pages, cost]);
+                            }
+                        }
+                    }
+                    fileNameSuffix = 'Owner_Monthly';
+                    break;
+                case 'total_pages_by_owner':
+                    exportDataArray.push(['Owner', 'Total Pages', 'Estimated Cost']);
+                    const sortedOwners = Object.entries(ownerPageTotalsForExport)
+                        .filter(([owner]) => finalOwnersForExport.includes(owner))
+                        .sort(([, pagesA], [, pagesB]) => pagesB - pagesA);
+                    sortedOwners.forEach(([owner, pages]) => {
+                        const cost = (pages * pageCost).toFixed(2);
+                        exportDataArray.push([owner, pages, cost]);
+                    });
+                    fileNameSuffix = 'Total_by_Owner';
+                    break;
+                case 'total_pages_by_month':
+                    exportDataArray.push(['Month', 'Total Pages', 'Estimated Cost']);
+                    const monthlyTotals = {};
+                    filteredRawDataForExport.forEach(item => {
+                        const monthKey = `${item.date.getFullYear()}-${String(item.date.getMonth() + 1).padStart(2, '0')}`;
+                        monthlyTotals[monthKey] = (monthlyTotals[monthKey] || 0) + item.pages;
+                    });
+                    const sortedMonths = Object.entries(monthlyTotals).sort((a, b) => a[0].localeCompare(b[0]));
+                    sortedMonths.forEach(([monthKey, pages]) => {
+                        const [year, monthNum] = monthKey.split('-');
+                        const monthName = monthNames[parseInt(monthNum) - 1];
+                        const cost = (pages * pageCost).toFixed(2);
+                        exportDataArray.push([`${monthName} ${year}`, pages, cost]);
+                    });
+                    fileNameSuffix = 'Total_by_Month';
+                    break;
+                case 'total_pages_by_year':
+                    exportDataArray.push(['Year', 'Total Pages', 'Estimated Cost']);
+                    const yearlyTotals = {};
+                    filteredRawDataForExport.forEach(item => {
+                        const year = item.date.getFullYear();
+                        yearlyTotals[year] = (yearlyTotals[year] || 0) + item.pages;
+                    });
+                    const sortedYears = Object.entries(yearlyTotals).sort((a, b) => parseInt(a[0]) - parseInt(b[0]));
+                    sortedYears.forEach(([year, pages]) => {
+                        const cost = (pages * pageCost).toFixed(2);
+                        exportDataArray.push([year, pages, cost]);
+                    });
+                    fileNameSuffix = 'Total_by_Year';
+                    break;
+                case 'total_pages_by_week':
+                    exportDataArray.push(['Week', 'Total Pages', 'Estimated Cost']);
+                    const weeklyTotals = {};
+                    filteredRawDataForExport.forEach(item => {
+                        const weekKey = `${item.date.getFullYear()}-W${String(moment(item.date).isoWeek()).padStart(2, '0')}`;
+                        weeklyTotals[weekKey] = (weeklyTotals[weekKey] || 0) + item.pages;
+                    });
+                    const sortedWeeks = Object.entries(weeklyTotals).sort((a, b) => a[0].localeCompare(b[0]));
+                    sortedWeeks.forEach(([weekKey, pages]) => {
+                        const cost = (pages * pageCost).toFixed(2);
+                        exportDataArray.push([weekKey, pages, cost]);
+                    });
+                    fileNameSuffix = 'Total_by_Week';
+                    break;
+                case 'total_pages_by_day':
+                    exportDataArray.push(['Date', 'Day of Week', 'Total Pages', 'Estimated Cost']);
+                    const dailyTotals = {};
+                    filteredRawDataForExport.forEach(item => {
+                        const dayKey = moment(item.date).format('YYYY-MM-DD');
+                        dailyTotals[dayKey] = (dailyTotals[dayKey] || 0) + item.pages;
+                    });
+                    const sortedDays = Object.entries(dailyTotals).sort((a, b) => a[0].localeCompare(b[0]));
+                    sortedDays.forEach(([dayKey, pages]) => {
+                        const dateMoment = moment(dayKey);
+                        const dayOfWeek = dayNames[dateMoment.day()];
+                        const cost = (pages * pageCost).toFixed(2);
+                        exportDataArray.push([dateMoment.format('YYYY-MM-DD'), dayOfWeek, pages, cost]);
+                    });
+                    fileNameSuffix = 'Total_by_Day';
+                    break;
+                case 'raw_data_table':
+                    exportDataArray.push(originalHeaders);
+                    filteredRawDataForExport.forEach(item => {
+                        exportDataArray.push(item.originalRow);
+                    });
+                    fileNameSuffix = 'Raw_Data';
+                    break;
+                case 'owner_comparison':
+                    exportDataArray.push(['Owner', 'Total Pages', 'Estimated Cost']);
+                    const owner1Pages = ownerPageTotalsForExport[compareOwner1] || 0;
+                    const owner2Pages = ownerPageTotalsForExport[compareOwner2] || 0;
+                    exportDataArray.push([compareOwner1, owner1Pages, (owner1Pages * pageCost).toFixed(2)]);
+                    exportDataArray.push([compareOwner2, owner2Pages, (owner2Pages * pageCost).toFixed(2)]);
+                    fileNameSuffix = `Comparison_${compareOwner1.replace(/\s/g, '_')}_vs_${compareOwner2.replace(/\s/g, '_')}`;
+                    break;
+            }
+
+            if (exportDataArray.length <= 1 && reportView !== 'raw_data_table') {
+                showMessage('No data to export based on current filters.', 'yellow');
+                return;
+            } else if (exportDataArray.length === 0 && reportView === 'raw_data_table') {
+                 showMessage('No raw data to export based on current filters.', 'yellow');
+                 return;
+            }
+
+
+            const ws = XLSX.utils.aoa_to_sheet(exportDataArray);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Print Report");
+
+            let fileName = 'Print_Report';
+            if (fileNameSuffix) fileName += `_${fileNameSuffix}`;
+            if (selectedOwner) fileName += `_Owner-${selectedOwner.replace(/\s/g, '_')}`;
+            if (selectedYear) fileName += `_Year-${selectedYear}`;
+            if (selectedMonth) fileName += `_Month-${monthNames[parseInt(selectedMonth) - 1].substring(0, 3)}`;
+            if (startDate && endDate) fileName += `_DateRange-${startDate.format('YYYYMMDD')}-${endDate.format('YYYYMMDD')}`;
+            if (!isNaN(topN) && topN > 0) fileName += `_Top${topN}`;
+
+            fileName += `_${moment().format('YYYYMMDD_HHmmss')}`;
+
+            if (format === 'csv') {
+                const csvContent = XLSX.utils.sheet_to_csv(ws);
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = `${fileName}.csv`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                showMessage('Exported to CSV successfully!', 'green');
+            } else if (format === 'xlsx') {
+                XLSX.writeFile(wb, `${fileName}.xlsx`);
+                showMessage('Exported to XLSX successfully!', 'green');
+            }
+        }
+
+        // New: PDF Export Function
+        async function exportPdfReport() {
+            showMessage('Generating PDF... <span class="loader"></span>', 'blue');
+
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF('p', 'mm', 'a4'); // Portrait, millimeters, A4 size
+
+            const margin = 10;
+            let yPos = margin;
+            const pageWidth = doc.internal.pageSize.getWidth();
+            const pageHeight = doc.internal.pageSize.getHeight();
+
+            doc.setFontSize(22);
+            doc.setTextColor(51, 51, 153); // Dark blue for title
+            doc.text("Print Job Analysis Report", pageWidth / 2, yPos, { align: 'center' });
+            yPos += 15;
+
+            // Add Summary KPIs
+            doc.setFontSize(14);
+            doc.setTextColor(60, 60, 60); // Dark gray
+            doc.text("Summary Statistics:", margin, yPos);
+            yPos += 8;
+
+            const kpis = [
+                `Total Pages Printed: ${totalPagesPrintedSpan.textContent}`,
+                `Estimated Total Cost: ${estimatedTotalCostSpan.textContent}`,
+                `Total Owners: ${totalOwnersSpan.textContent}`,
+                `Top User (Pages): ${topUserSpan.textContent} (${topUserPagesSpan.textContent})`,
+                `Busiest Month: ${busiestMonthSpan.textContent} (${busiestMonthPagesSpan.textContent})`,
+                `Avg. Pages/Day: ${avgPagesPerDaySpan.textContent}`
+            ];
+
+            kpis.forEach(kpi => {
+                doc.setFontSize(11);
+                doc.text(kpi, margin + 5, yPos);
+                yPos += 6;
+            });
+            yPos += 10;
+
+            // Add Chart
+            doc.setFontSize(14);
+            doc.text("Print Activity Visualization:", margin, yPos);
+            yPos += 8;
+
+            // Capture chart as image
+            const chartCanvas = document.getElementById('printChart');
+            if (chartCanvas) {
+                try {
+                    const chartImgData = chartCanvas.toDataURL('image/png', 1.0); // High quality
+                    const imgWidth = 180; // mm
+                    const imgHeight = chartCanvas.height * imgWidth / chartCanvas.width;
+
+                    if (yPos + imgHeight > pageHeight - margin) { // Check if chart fits on current page
+                        doc.addPage();
+                        yPos = margin;
+                    }
+                    doc.addImage(chartImgData, 'PNG', margin, yPos, imgWidth, imgHeight);
+                    yPos += imgHeight + 10;
+                } catch (e) {
+                    console.error("Error capturing chart for PDF:", e);
+                    doc.text("Error rendering chart.", margin, yPos);
+                    yPos += 10;
+                }
+            }
+
+            // Add Report Table
+            doc.setFontSize(14);
+            doc.text("Detailed Report:", margin, yPos);
+            yPos += 8;
+
+            const currentTable = reportOutputDiv.querySelector('table');
+            if (currentTable) {
+                // Temporarily clone and simplify table for html2canvas for better rendering
+                const tempTable = currentTable.cloneNode(true);
+                // Remove sort indicators as they are UI specific
+                tempTable.querySelectorAll('th').forEach(th => {
+                    th.classList.remove('sort-asc', 'sort-desc');
+                });
+                tempTable.style.width = '100%'; // Ensure table takes full width for rendering
+
+                // Append to a hidden div for rendering
+                const hiddenDiv = document.createElement('div');
+                hiddenDiv.style.position = 'absolute';
+                hiddenDiv.style.left = '-9999px';
+                hiddenDiv.style.width = `${pageWidth - 2 * margin}mm`; // Match PDF width
+                hiddenDiv.appendChild(tempTable);
+                document.body.appendChild(hiddenDiv);
+
+                try {
+                    const canvas = await html2canvas(hiddenDiv, {
+                        scale: 2, // Improve resolution
+                        useCORS: true,
+                        backgroundColor: null // Transparent background
+                    });
+                    const imgData = canvas.toDataURL('image/png', 1.0);
+                    const imgWidth = pageWidth - 2 * margin;
+                    const imgHeight = canvas.height * imgWidth / canvas.width;
+
+                    let currentImgY = yPos;
+                    let remainingHeight = imgHeight;
+
+                    while (remainingHeight > 0) {
+                        if (currentImgY + remainingHeight > pageHeight - margin && currentImgY > margin) {
+                            doc.addPage();
+                            currentImgY = margin;
+                        }
+
+                        const clipHeight = Math.min(remainingHeight, pageHeight - margin - currentImgY);
+                        doc.addImage(imgData, 'PNG', margin, currentImgY, imgWidth, clipHeight, undefined, 'FAST', 0, - (imgHeight - remainingHeight));
+                        remainingHeight -= clipHeight;
+                        currentImgY += clipHeight; // This logic needs adjustment for multi-page tables
+                    }
+                     // A more robust way for multi-page tables using autoTable (but not directly supported for HTML table)
+                     // A manual slicing/splitting of the canvas is needed for a truly responsive HTML table to PDF.
+                     // For simplicity, a direct screenshot might look cut if table is too long.
+                     // jsPDF-AutoTable plugin would be ideal for structured tables, but requires data in array format.
+                    if (yPos + imgHeight > pageHeight - margin) { // Check if table fits on current page (simple check)
+                         doc.addPage();
+                         yPos = margin;
+                    }
+                     doc.addImage(imgData, 'PNG', margin, yPos, imgWidth, imgHeight);
+                     yPos += imgHeight + 10;
+
+                } catch (e) {
+                    console.error("Error capturing table for PDF:", e);
+                    doc.text("Error rendering detailed report table.", margin, yPos);
+                } finally {
+                    document.body.removeChild(hiddenDiv); // Clean up
+                }
+
+            } else {
+                doc.text("No detailed report table to display.", margin, yPos);
+                yPos += 10;
+            }
+
+            // Footer
+            doc.setFontSize(10);
+            doc.setTextColor(150, 150, 150);
+            doc.text(`Generated on: ${moment().format('YYYY-MM-DD HH:mm:ss')}`, margin, pageHeight - 10);
+            doc.text("Powered by Print Report Generator", pageWidth - margin, pageHeight - 10, { align: 'right' });
+
+
+            let fileName = 'Print_Report_PDF';
+            const selectedOwner = ownerFilterSelect.value;
+            const selectedYear = yearFilterSelect.value;
+            const selectedMonth = monthFilterSelect.value;
+            const startDate = startDateFilter.value ? moment(startDateFilter.value).startOf('day') : null;
+            const endDate = endDateFilter.value ? moment(endDateFilter.value).endOf('day') : null;
+            const topN = parseInt(topNFilterInput.value);
+
+            if (selectedOwner) fileName += `_Owner-${selectedOwner.replace(/\s/g, '_')}`;
+            if (selectedYear) fileName += `_Year-${selectedYear}`;
+            if (selectedMonth) fileName += `_Month-${monthNames[parseInt(selectedMonth) - 1].substring(0, 3)}`;
+            if (startDate && endDate) fileName += `_DateRange-${startDate.format('YYYYMMDD')}-${endDate.format('YYYYMMDD')}`;
+            if (!isNaN(topN) && topN > 0) fileName += `_Top${topN}`;
+            fileName += `_${moment().format('YYYYMMDD_HHmmss')}`;
+
+            doc.save(`${fileName}.pdf`);
+            showMessage('PDF generated successfully!', 'green');
+        }
+
+
+        // --- UI/UX Enhancements ---
+
+        // Collapsible Filter Section
+        function toggleFilterSection() {
+            filterOptionsDiv.classList.toggle('hidden');
+            filtersToggleIcon.classList.toggle('rotate-180');
+        }
+
+        // Help Modal functions
+        function openModal(modalId) {
+            const modal = document.getElementById(modalId);
+            modal.classList.remove('hidden');
+            setTimeout(() => { // Trigger transition
+                modal.querySelector('.modal-content').classList.add('show');
+            }, 10);
+        }
+
+        function closeModal(modalId) {
+            const modal = document.getElementById(modalId);
+            modal.querySelector('.modal-content').classList.remove('show');
+            setTimeout(() => { // Allow transition to finish
+                modal.classList.add('hidden');
+            }, 300);
+        }
+
+        // Close modal when clicking outside
+        helpModal.addEventListener('click', (e) => {
+            if (e.target === helpModal) {
+                closeModal('helpModal');
+            }
+        });
+
+        // Dark/Light Mode
+        function toggleDarkMode() {
+            if (darkModeToggle.checked) {
+                document.body.classList.add('dark');
+                themeToggleLabel.classList.add('checked');
+                localStorage.setItem('theme', 'dark');
+                dropArea.classList.add('dark');
+            } else {
+                document.body.classList.remove('dark');
+                themeToggleLabel.classList.remove('checked');
+                localStorage.setItem('theme', 'light');
+                dropArea.classList.remove('dark');
+            }
+            // Update chart colors on theme change
+            if (currentChart) {
+                updateChart(globalAggregatedData, chartTypeSelect.value, getMonthlyTotals(globalRawData), getOwnerTotals(globalRawData));
+            }
+            // Re-apply message area styling
+            const currentMessage = messageArea.innerHTML;
+            const currentType = messageArea.className.match(/bg-(red|green|yellow|blue)-100|bg-(red|green|yellow|blue)-800/);
+            showMessage(currentMessage, currentType ? currentType[1] : 'info');
+        }
+
+        // Helper functions for KPI and Chart updates to get totals from raw data
+        function getOwnerTotals(rawData) {
+            const totals = {};
+            rawData.forEach(item => {
+                totals[item.owner] = (totals[item.owner] || 0) + item.pages;
+            });
+            return totals;
+        }
+
+        function getMonthlyTotals(rawData) {
+            const totals = {};
+            rawData.forEach(item => {
+                const monthKey = `${item.date.getFullYear()}-${String(item.date.getMonth() + 1).padStart(2, '0')}`;
+                totals[monthKey] = (totals[monthKey] || 0) + item.pages;
+            });
+            return totals;
+        }
+    </script>
+</body>
+</html>
